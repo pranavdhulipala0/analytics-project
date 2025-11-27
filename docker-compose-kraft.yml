@@ -1,0 +1,66 @@
+# Modern Kafka setup WITHOUT ZooKeeper (KRaft mode)
+# This is simpler and removes ZooKeeper dependency
+
+version: '3.8'
+
+services:
+  # No ZooKeeper needed!
+  
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    ports:
+      - "5092:9092"
+    environment:
+      # KRaft mode configuration (no ZooKeeper)
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      
+      # Cluster and storage
+      CLUSTER_ID: analytics-cluster-1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  mongodb:
+    image: mongo:6.0
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  api:
+    build: ./api
+    depends_on:
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - MONGODB_URI=mongodb://mongodb:27017/analytics
+    restart: on-failure
+
+  worker:
+    build: ./worker
+    depends_on:
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_started
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - MONGODB_URI=mongodb://mongodb:27017/analytics
+    restart: on-failure
+
+volumes:
+  mongo-data:

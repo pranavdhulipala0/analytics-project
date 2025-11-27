@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: analytics-api
+    env: docker
+    dockerfilePath: ./api/Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: KAFKA_BROKERS
+        fromService:
+          type: redis  # Replace with your managed Kafka service
+          name: kafka-cluster
+          property: connectionString
+      - key: MONGODB_URI
+        fromDatabase:
+          name: analytics-mongodb
+          property: connectionString
+      - key: KAFKAJS_NO_PARTITIONER_WARNING
+        value: "1"
+
+  - type: worker
+    name: analytics-worker
+    env: docker
+    dockerfilePath: ./worker/Dockerfile
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: KAFKA_BROKERS
+        fromService:
+          type: redis  # Replace with your managed Kafka service  
+          name: kafka-cluster
+          property: connectionString
+      - key: MONGODB_URI
+        fromDatabase:
+          name: analytics-mongodb
+          property: connectionString
+      - key: KAFKAJS_NO_PARTITIONER_WARNING
+        value: "1"
+
+databases:
+  - name: analytics-mongodb
+    plan: starter
